@@ -1,0 +1,6 @@
+[submodule "lib/irrlicht"]
+	path = lib/irrlicht
+	url = https://github.com/andrij-felenko/irrlicht.git
+[submodule "lib/sdl"]
+	path = lib/sdl
+	url = https://github.com/andrij-felenko/SDL.git
