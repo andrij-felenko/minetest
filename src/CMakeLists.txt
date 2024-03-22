@@ -1,41 +1,4 @@
-project(minetest)
-
-INCLUDE(CheckTypeSize)
-INCLUDE(CheckIncludeFiles)
-INCLUDE(CheckLibraryExists)
-
-check_type_size(int SIZEOF_INT BUILTIN_TYPES_ONLY LANGUAGE CXX)
-if(SIZEOF_INT LESS 4)
-	message(FATAL_ERROR "Minetest will not work with int less than 32 bits wide.")
-endif()
-
-check_type_size(size_t SIZEOF_SIZE_T LANGUAGE CXX)
-if(SIZEOF_SIZE_T LESS 4)
-	message(FATAL_ERROR "Minetest will not work with size_t less than 32 bits wide.")
-endif()
-
-# Add custom SemiDebug build mode
-set(CMAKE_CXX_FLAGS_SEMIDEBUG "-O1 -g -Wall" CACHE STRING
-	"Flags used by the C++ compiler during semidebug builds."
-	FORCE
-)
-set(CMAKE_C_FLAGS_SEMIDEBUG "-O1 -g -Wall -pedantic" CACHE STRING
-	"Flags used by the C compiler during semidebug builds."
-	FORCE
-)
-mark_as_advanced(
-	CMAKE_CXX_FLAGS_SEMIDEBUG
-	CMAKE_C_FLAGS_SEMIDEBUG
-)
-set(CMAKE_BUILD_TYPE "${CMAKE_BUILD_TYPE}" CACHE STRING
-	"Choose the type of build. Options are: None Debug SemiDebug RelWithDebInfo MinSizeRel."
-	FORCE
-)
-
-
-# Set some random things default to not being visible in the GUI
-mark_as_advanced(EXECUTABLE_OUTPUT_PATH LIBRARY_OUTPUT_PATH)
-
+cmake_minimum_required (VERSION 3.21)
 
 if(NOT (BUILD_CLIENT OR BUILD_SERVER))
 	message(WARNING "Neither BUILD_CLIENT nor BUILD_SERVER is set! Setting BUILD_SERVER=true")
@@ -43,6 +6,7 @@ if(NOT (BUILD_CLIENT OR BUILD_SERVER))
 endif()
 
 
+# beeter not touch it yet, take all from original library -------------------------------
 option(ENABLE_CURL "Enable cURL support for fetching media" TRUE)
 set(USE_CURL FALSE)
 
@@ -85,7 +49,7 @@ else()
 endif()
 
 
-option(ENABLE_SOUND "Enable sound" TRUE)
+option(ENABLE_SOUND "Enable sound" false)
 set(USE_SOUND FALSE)
 
 if(BUILD_CLIENT AND ENABLE_SOUND)
@@ -230,15 +194,11 @@ if(ENABLE_SPATIAL)
 		message(STATUS "SpatialIndex not found!")
 	endif(SPATIAL_LIBRARY AND SPATIAL_INCLUDE_DIR)
 endif(ENABLE_SPATIAL)
+# =======================================================================================
 
 
 find_package(ZLIB REQUIRED)
 find_package(Zstd REQUIRED)
-
-
-if(NOT MSVC)
-	set(USE_GPROF FALSE CACHE BOOL "Use -pg flag for g++")
-endif()
 
 # Haiku endian support
 if(HAIKU)
@@ -246,6 +206,7 @@ if(HAIKU)
 	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -D_BSD_SOURCE")
 endif()
 
+# ---------------------------- Use compile configuration --------------------------------
 # Use cmake_config.h
 add_definitions(-DUSE_CMAKE_CONFIG_H)
 
@@ -288,7 +249,13 @@ else()
 	# Unix probably
 	set(PLATFORM_LIBS ${PLATFORM_LIBS} ${CMAKE_DL_LIBS})
 	if(APPLE)
-		set(PLATFORM_LIBS "-framework CoreFoundation" ${PLATFORM_LIBS})
+            if(IOS)
+                # For iOS, you would typically link against frameworks rather than libraries
+                set(PLATFORM_LIBS "-framework UIKit -framework Foundation -framework CoreGraphics" ${PLATFORM_LIBS})
+                # Additional iOS-specific settings can be placed here
+            else()
+                set(PLATFORM_LIBS "-framework CoreFoundation" ${PLATFORM_LIBS})
+            endif()
 	else()
 		check_library_exists(rt clock_gettime "" HAVE_LIBRT)
 		if (HAVE_LIBRT)
@@ -314,6 +281,8 @@ else()
 		set(PLATFORM_LIBS ${PLATFORM_LIBS} android log)
 	endif()
 endif()
+# =======================================================================================
+
 
 # On clang and gcc, some functionalities of std::atomic require -latomic.
 # See <https://en.cppreference.com/w/cpp/atomic/atomic#Notes>.
@@ -349,6 +318,9 @@ add_custom_target(GenerateVersion
 	WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}")
 
 
+
+
+# ---------------------------- File source managemant -----------------------------------
 add_subdirectory(threading)
 add_subdirectory(content)
 add_subdirectory(database)
@@ -534,8 +506,12 @@ endif()
 if(USE_CURL)
 	include_directories(${CURL_INCLUDE_DIR})
 endif()
+# =======================================================================================
 
 
+
+
+# ---------------------------- Build CLIENT ---------------------------------------------
 # When cross-compiling assume the user doesn't want to run the executable anyway,
 # otherwise place it in <source dir>/bin/ since Minetest can only run from there.
 if(NOT CMAKE_CROSSCOMPILING)
@@ -611,8 +587,12 @@ if(BUILD_CLIENT)
 		target_link_libraries(${PROJECT_NAME} catch2)
 	endif()
 endif(BUILD_CLIENT)
+# =======================================================================================
 
 
+
+
+# ---------------------------- Build Server ---------------------------------------------
 if(BUILD_SERVER)
 	add_executable(${PROJECT_NAME}server ${server_SRCS} ${extra_windows_SRCS})
 	add_dependencies(${PROJECT_NAME}server GenerateVersion)
@@ -673,6 +653,10 @@ if(BUILD_SERVER)
 		target_link_libraries(${PROJECT_NAME}server catch2)
 	endif()
 endif(BUILD_SERVER)
+# =======================================================================================
+
+
+
 
 # See issue #4638
 FILE(READ "${CMAKE_SOURCE_DIR}/src/unsupported_language_list.txt" GETTEXT_BLACKLISTED_LOCALES)
